@@ -334,6 +334,57 @@ select { appearance:none; cursor:pointer; }
   opacity:0; pointer-events:none; transition:opacity .18s; z-index:999;
 }
 .toast.show { opacity:1; }
+
+/* ─── Auth section ───────────────────────────────────────────────── */
+.auth-url-row {
+  display:flex; gap:5px; align-items:center; margin-top:7px;
+}
+.auth-url-box {
+  flex:1; font-family:'DM Mono',monospace; font-size:10px;
+  color:var(--text-dim); background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--r-sm);
+  padding:5px 8px; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; cursor:default; user-select:all;
+}
+.btn-cp-url {
+  flex-shrink:0; padding:5px 9px;
+  font-size:11px; font-weight:500;
+  background:transparent; color:var(--text-sub);
+  border:1px solid var(--border); border-radius:var(--r-sm);
+  cursor:pointer; transition:all var(--t);
+  font-family:'DM Sans',sans-serif;
+}
+.btn-cp-url:hover { border-color:var(--border-hi); color:var(--text); }
+
+.btn-auth {
+  width:100%; margin-top:9px;
+  padding:8px 12px;
+  background:var(--accent-dim); color:var(--accent);
+  border:1px solid rgba(var(--accent-rgb),.3);
+  border-radius:var(--r-sm);
+  font-family:'DM Sans',sans-serif; font-size:12.5px; font-weight:600;
+  cursor:pointer; letter-spacing:.1px;
+  transition:all var(--t);
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.btn-auth:hover { background:rgba(var(--accent-rgb),.2); border-color:rgba(var(--accent-rgb),.5); }
+.btn-auth:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ─── Auth success banner ────────────────────────────────────────── */
+.auth-banner {
+  display:none;
+  margin:10px 13px 0;
+  padding:9px 12px;
+  background:var(--ok-bg); border:1px solid rgba(52,211,153,.25);
+  border-radius:var(--r-sm);
+  font-size:12px; color:var(--ok); line-height:1.4;
+}
+.auth-banner.show { display:block; }
+.auth-banner strong { font-weight:600; display:block; margin-bottom:2px; }
+.auth-banner-close {
+  float:right; background:none; border:none; color:var(--ok);
+  font-size:15px; cursor:pointer; line-height:1; margin-top:-1px;
+}
 </style>
 </head>
 <body>
@@ -390,6 +441,25 @@ select { appearance:none; cursor:pointer; }
       <div class="s-label">User Credentials</div>
       <div class="f"><div class="fl">User ID</div><input type="text" id="userId" placeholder="User ID"></div>
       <div class="f"><div class="fl">User Key</div><input type="password" id="userKey" placeholder="User Key"></div>
+    </div>
+
+    <!-- Auth success banner -->
+    <div class="auth-banner" id="authBanner">
+      <button class="auth-banner-close" onclick="dismissAuthBanner()">×</button>
+      <strong>✓ Authenticated</strong>
+      User credentials captured from Brightspace redirect.
+    </div>
+
+    <div class="s-sec">
+      <div class="s-label">Brightspace Auth</div>
+      <div class="fl" style="margin-bottom:5px;">Trusted URL — paste this into Manage Extensibility when registering your app:</div>
+      <div class="auth-url-row">
+        <div class="auth-url-box" id="trustedUrlDisplay" title="Your tool's URL — use as the Trusted URL in Brightspace"></div>
+        <button class="btn-cp-url" onclick="cpTrustedUrl()" title="Copy Trusted URL">Copy</button>
+      </div>
+      <button class="btn-auth" id="authBtn" onclick="doAuth()">
+        <span>→</span> Authenticate via Brightspace
+      </button>
     </div>
 
     <div class="s-sec">
@@ -812,6 +882,88 @@ const getProfs = () => { try { return JSON.parse(localStorage.getItem('vat3_p')|
 const putProfs = p  => localStorage.setItem('vat3_p', JSON.stringify(p));
 
 /* ══════════════════════════════════════════════════════
+   BRIGHTSPACE AUTH FLOW
+══════════════════════════════════════════════════════ */
+
+// The URL of this page — used as the Trusted URL / callback
+function thisUrl() {
+  return window.location.origin + window.location.pathname;
+}
+
+// Show the current page URL in the trusted URL box
+function renderTrustedUrl() {
+  const el = $('trustedUrlDisplay');
+  if (el) el.textContent = thisUrl();
+}
+
+// Copy the trusted URL to clipboard
+function cpTrustedUrl() {
+  navigator.clipboard.writeText(thisUrl()).then(() => toast('Trusted URL copied'));
+}
+
+// Redirect to Brightspace auth endpoint
+function doAuth() {
+  const host  = gv('host');
+  const port  = gv('port');
+  const https = $('useHttps').checked;
+  const aId   = gv('appId');
+  const aKey  = gv('appKey');
+
+  if (!host) return toast('Enter a Host first');
+  if (!aId)  return toast('Enter an App ID first');
+
+  // Save current connection state so we can restore it after redirect
+  sessionStorage.setItem('vat_pre_auth', JSON.stringify({
+    host, port, https, aId, aKey,
+    profName: gv('profName'),
+  }));
+
+  const scheme   = https ? 'https' : 'http';
+  const portPart = port ? `:${port}` : '';
+  const callback = encodeURIComponent(thisUrl());
+  const authUrl  = `${scheme}://${host}${portPart}/d2l/auth/api/token?x-a=${encodeURIComponent(aId)}&x-b=${callback}`;
+
+  window.location.href = authUrl;
+}
+
+// Called on page load — checks if Brightspace just redirected us back
+// with user credentials in the query string (x-a = userId, x-b = userKey)
+function handleAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const uId  = params.get('x-a');
+  const uKey = params.get('x-b');
+
+  if (!uId || !uKey) return; // not a callback, normal load
+
+  // Restore pre-auth connection state
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('vat_pre_auth') || '{}');
+    if (saved.host)     sv('host',     saved.host);
+    if (saved.port)     sv('port',     saved.port);
+    if (saved.aId)      sv('appId',    saved.aId);
+    if (saved.aKey)     sv('appKey',   saved.aKey);
+    if (saved.profName) sv('profName', saved.profName);
+    if (saved.https !== undefined) $('useHttps').checked = saved.https;
+    sessionStorage.removeItem('vat_pre_auth');
+  } catch { /* ignore */ }
+
+  // Fill in the user credentials we just got from Brightspace
+  sv('userId',  uId);
+  sv('userKey', uKey);
+
+  // Clean the URL so the keys aren't sitting in the address bar
+  const clean = window.location.origin + window.location.pathname;
+  history.replaceState(null, '', clean);
+
+  // Show success banner
+  $('authBanner').classList.add('show');
+}
+
+function dismissAuthBanner() {
+  $('authBanner').classList.remove('show');
+}
+
+/* ══════════════════════════════════════════════════════
    CLEAR
 ══════════════════════════════════════════════════════ */
 function clearAll() {
@@ -843,6 +995,8 @@ function toast(msg) {
   setTheme(saved, sw);
   syncMC();
   renderProfs();
+  renderTrustedUrl();
+  handleAuthCallback();  // ← handles Brightspace redirect if params present
   $('route').addEventListener('keydown', e => { if (e.key==='Enter') doSend(); });
 })();
 </script>
