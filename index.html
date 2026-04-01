@@ -838,7 +838,7 @@ function fmtB(b) {
 }
 
 function cpSigned() {
-  navigator.clipboard.writeText($('signedUrl').textContent).then(()=>toast('Signed URL copied'));
+  navigator.clipboard.writeText($('signedUrl').textContent).then(()=>toast('URL copied'));
 }
 
 /* ══════════════════════════════════════════════════════
@@ -932,7 +932,13 @@ function doAuth() {
   const callback = encodeURIComponent(thisUrl());
   const authUrl  = `${scheme}://${buildHost(host, port, https)}/d2l/auth/api/token?x-a=${encodeURIComponent(aId)}&x-b=${callback}`;
 
-  window.location.href = authUrl;
+  // Show the URL in the signed strip so it's inspectable before the redirect
+  $('signed').style.display = 'block';
+  $('signedUrl').textContent = authUrl;
+
+  // Brief pause so user can see the URL, then redirect
+  setPill('busy', 'Redirecting…');
+  setTimeout(() => { window.location.href = authUrl; }, 1200);
 }
 
 // Called on page load — checks if Brightspace just redirected us back
