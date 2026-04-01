@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valence API Tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════
+   TOKEN LAYER — all themes write here via JS
+══════════════════════════════════════════════════════ */
+:root {
+  --bg:           #0d0d0f;
+  --surface:      #131316;
+  --surface2:     #1a1a1e;
+  --surface3:     #222228;
+  --border:       rgba(255,255,255,.065);
+  --border-hi:    rgba(255,255,255,.18);
+  --accent:       #5b8df6;
+  --accent-rgb:   91,141,246;
+  --accent-dim:   rgba(91,141,246,.12);
+  --accent-glow:  rgba(91,141,246,.05);
+  --text:         #e8e8ec;
+  --text-sub:     #72727e;
+  --text-dim:     #3a3a44;
+  --ok:           #34d399;
+  --ok-bg:        rgba(52,211,153,.08);
+  --err:          #f87171;
+  --err-bg:       rgba(248,113,113,.08);
+  --j-key:        #60a5fa;
+  --j-str:        #34d399;
+  --j-num:        #fbbf24;
+  --j-bool:       #a78bfa;
+  --j-null:       #f87171;
+  --m-get:        #34d399;
+  --m-post:       #fbbf24;
+  --m-put:        #60a5fa;
+  --m-del:        #f87171;
+  --m-patch:      #a78bfa;
+  --r: 5px;
+  --r-sm: 4px;
+  --t: .14s ease;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  height:100%; overflow:hidden;
+  font-family:'DM Sans', sans-serif;
+  background:var(--bg); color:var(--text);
+  font-size:13px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ─── Shell ──────────────────────────────────────────────────────── */
+.shell {
+  height:100vh;
+  display:grid;
+  grid-template-rows:44px 1fr 28px;
+}
+.body-row {
+  display:grid;
+  grid-template-columns:270px 1fr;
+  overflow:hidden;
+}
+
+/* ─── Topbar ─────────────────────────────────────────────────────── */
+.topbar {
+  display:flex; align-items:center; gap:12px;
+  padding:0 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+.wordmark {
+  display:flex; align-items:center; gap:7px;
+  font-size:13px; font-weight:600; letter-spacing:-.2px;
+  white-space:nowrap; user-select:none;
+}
+.wm-chip {
+  width:22px; height:22px; border-radius:5px;
+  background:var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'DM Mono',monospace; font-size:9px; font-weight:500;
+  color:var(--bg); letter-spacing:0;
+}
+.wm-sub { color:var(--text-sub); font-weight:400; }
+.tb-gap { flex:1; }
+
+/* Theme swatches */
+.swatch-row {
+  display:flex; align-items:center; gap:4px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:20px; padding:3px 7px;
+}
+.sw {
+  width:12px; height:12px; border-radius:50%;
+  cursor:pointer; border:2px solid transparent;
+  transition:transform var(--t), border-color var(--t);
+  flex-shrink:0;
+}
+.sw:hover { transform:scale(1.25); }
+.sw.on { border-color:var(--text); }
+.sw[data-t="graphite"] { background:#5b8df6; }
+.sw[data-t="obsidian"]  { background:#d4d4d8; }
+.sw[data-t="sage"]      { background:#34d399; }
+.sw[data-t="dusk"]      { background:#f59e0b; }
+.sw[data-t="light"]     { background:#3b82f6; outline:1px solid #d1d5db; }
+
+/* Spinner */
+.spin {
+  width:14px; height:14px; display:none;
+  border:1.5px solid var(--border-hi); border-top-color:var(--accent);
+  border-radius:50%; animation:rot .45s linear infinite;
+}
+@keyframes rot { to { transform:rotate(360deg); } }
+
+/* Status pill */
+.pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; border-radius:20px;
+  font-family:'DM Mono',monospace; font-size:11px; font-weight:500;
+  border:1px solid var(--border); background:var(--surface2);
+  transition:var(--t);
+}
+.pill-dot { width:5px; height:5px; border-radius:50%; background:var(--text-sub); transition:var(--t); }
+.pill.ok   { background:var(--ok-bg);  border-color:rgba(52,211,153,.25); color:var(--ok); }
+.pill.ok   .pill-dot { background:var(--ok);  box-shadow:0 0 5px var(--ok); }
+.pill.err  { background:var(--err-bg); border-color:rgba(248,113,113,.25); color:var(--err); }
+.pill.err  .pill-dot { background:var(--err); }
+.pill.busy { background:var(--accent-dim); border-color:rgba(var(--accent-rgb),.3); color:var(--accent); }
+.pill.busy .pill-dot { background:var(--accent); animation:blink .7s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ─── Sidebar ────────────────────────────────────────────────────── */
+.sidebar {
+  background:var(--surface); border-right:1px solid var(--border);
+  overflow-y:auto; display:flex; flex-direction:column;
+  scrollbar-width:thin; scrollbar-color:var(--surface3) transparent;
+}
+.sidebar::-webkit-scrollbar { width:4px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+.s-sec { padding:13px 13px; border-bottom:1px solid var(--border); }
+.s-label {
+  font-size:10px; font-weight:600; letter-spacing:1.2px;
+  text-transform:uppercase; color:var(--text-dim);
+  margin-bottom:9px;
+}
+
+.f { display:flex; flex-direction:column; gap:3px; }
+.f + .f { margin-top:7px; }
+.fl { font-size:11px; font-weight:500; color:var(--text-sub); }
+.f2 { display:grid; grid-template-columns:1fr 72px; gap:7px; }
+
+input, select, textarea {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--r-sm); padding:6px 9px;
+  color:var(--text); font-family:'DM Mono',monospace; font-size:11.5px;
+  outline:none; width:100%;
+  transition:border-color var(--t), box-shadow var(--t);
+}
+input:focus, select:focus, textarea:focus {
+  border-color:var(--border-hi);
+  box-shadow:0 0 0 2px var(--accent-glow);
+}
+input::placeholder, textarea::placeholder { color:var(--text-dim); }
+select { appearance:none; cursor:pointer; }
+
+/* Toggle */
+.tog-row { display:flex; align-items:center; justify-content:space-between; padding:5px 0 0; }
+.tog-text { font-size:12px; color:var(--text-sub); font-weight:500; }
+.tog { position:relative; width:30px; height:17px; }
+.tog input { display:none; }
+.tog-tr {
+  position:absolute; inset:0; background:var(--surface3);
+  border-radius:9px; cursor:pointer;
+  transition:background var(--t);
+}
+.tog-tr::after {
+  content:''; position:absolute;
+  width:11px; height:11px; border-radius:50%;
+  background:var(--text-sub); top:3px; left:3px;
+  transition:all var(--t);
+}
+.tog input:checked + .tog-tr { background:rgba(var(--accent-rgb),.22); }
+.tog input:checked + .tog-tr::after { background:var(--accent); transform:translateX(13px); }
+
+/* Buttons */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:6px 12px; border-radius:var(--r-sm);
+  font-family:'DM Sans',sans-serif; font-size:12.5px; font-weight:500;
+  cursor:pointer; border:none; transition:all var(--t);
+}
+.btn-a { background:var(--accent); color:var(--bg); font-weight:600; }
+.btn-a:hover { filter:brightness(1.1); }
+.btn-g { background:transparent; color:var(--text-sub); border:1px solid var(--border); }
+.btn-g:hover { border-color:var(--border-hi); color:var(--text); }
+.btns { display:flex; gap:6px; margin-top:9px; }
+.btns .btn { flex:1; }
+
+/* Profile pills */
+.profs { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+.pp {
+  display:inline-flex; align-items:center; gap:2px;
+  padding:2px 8px 2px 9px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:20px; font-size:11.5px; font-weight:500;
+  cursor:pointer; transition:all var(--t); color:var(--text-sub);
+}
+.pp:hover { border-color:var(--border-hi); color:var(--text); }
+.pp-x { color:var(--text-dim); font-size:14px; line-height:1; padding:0 2px; cursor:pointer; }
+.pp-x:hover { color:var(--err); }
+
+/* Quick list */
+.q-list { display:flex; flex-direction:column; gap:3px; }
+.q-item {
+  display:flex; align-items:center; gap:8px;
+  padding:5px 8px; border-radius:var(--r-sm);
+  background:var(--surface2); border:1px solid transparent;
+  cursor:pointer; transition:all var(--t);
+}
+.q-item:hover { border-color:var(--border); background:var(--surface3); }
+.q-m { font-family:'DM Mono',monospace; font-size:10px; font-weight:500; width:36px; flex-shrink:0; }
+.q-p { font-family:'DM Mono',monospace; font-size:10.5px; color:var(--text-sub);
+       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ─── Main panel ─────────────────────────────────────────────────── */
+.main { display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
+
+/* Request bar */
+.req-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+#method { width:88px; text-align:center; font-family:'DM Mono',monospace; font-size:12px; font-weight:500; }
+#route  { flex:1; font-size:12px; }
+.send {
+  padding:7px 18px; flex-shrink:0;
+  background:var(--accent); color:var(--bg);
+  border:none; border-radius:var(--r-sm);
+  font-family:'DM Sans',sans-serif; font-size:12.5px; font-weight:600;
+  cursor:pointer; letter-spacing:.15px;
+  transition:filter var(--t);
+}
+.send:hover:not(:disabled) { filter:brightness(1.12); }
+.send:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Panel split */
+.panels { flex:1; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
+.pane { display:flex; flex-direction:column; overflow:hidden; border-right:1px solid var(--border); }
+.pane:last-child { border-right:none; }
+
+.ph {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 13px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+  flex-shrink:0; gap:8px;
+}
+.ph-title {
+  font-size:10.5px; font-weight:600; letter-spacing:.9px;
+  text-transform:uppercase; color:var(--text-dim);
+}
+.pb { flex:1; overflow:auto; }
+.pb::-webkit-scrollbar { width:4px; height:4px; }
+.pb::-webkit-scrollbar-thumb { background:var(--surface3); border-radius:2px; }
+
+/* Tabs */
+.tabs { display:flex; gap:2px; }
+.tab {
+  padding:3px 9px; border-radius:var(--r-sm);
+  background:transparent; border:none;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500;
+  color:var(--text-sub); cursor:pointer; transition:all var(--t);
+}
+.tab.on  { background:var(--accent-dim); color:var(--accent); }
+.tab:hover:not(.on) { color:var(--text); }
+
+/* CT select */
+.ct-sel { font-size:11px; padding:3px 8px; width:auto; }
+
+/* Code areas */
+.code-ta {
+  width:100%; height:100%; background:transparent; border:none;
+  color:var(--text); font-family:'DM Mono',monospace;
+  font-size:12px; line-height:1.7;
+  padding:13px 15px; resize:none; outline:none;
+}
+.resp-pre {
+  padding:13px 15px; min-height:100%;
+  font-family:'DM Mono',monospace; font-size:12px; line-height:1.7;
+  white-space:pre-wrap; word-break:break-all; color:var(--text-dim);
+}
+
+/* Signed URL strip */
+.signed {
+  background:var(--surface2); border-top:1px solid var(--border);
+  padding:7px 13px; display:none; flex-shrink:0;
+}
+.signed-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; }
+.signed-lbl { font-size:10px; font-weight:600; letter-spacing:.9px; text-transform:uppercase; color:var(--text-dim); }
+.signed-cp  { font-size:11px; color:var(--accent); background:none; border:none;
+              cursor:pointer; font-family:'DM Sans',sans-serif; font-weight:500; }
+.signed-url { font-family:'DM Mono',monospace; font-size:10.5px; color:var(--text-sub);
+              word-break:break-all; line-height:1.6; }
+
+/* ─── Footer ─────────────────────────────────────────────────────── */
+.footer {
+  display:flex; align-items:center; gap:16px;
+  padding:0 16px;
+  background:var(--surface); border-top:1px solid var(--border);
+  font-family:'DM Mono',monospace; font-size:11px; color:var(--text-dim);
+}
+.ft-msg { flex:1; }
+.ft-stat { color:var(--text-sub); }
+
+/* ─── JSON colors ────────────────────────────────────────────────── */
+.jk { color:var(--j-key);  }
+.js { color:var(--j-str);  }
+.jn { color:var(--j-num);  }
+.jb { color:var(--j-bool); }
+.jl { color:var(--j-null); }
+
+/* ─── Toast ──────────────────────────────────────────────────────── */
+.toast {
+  position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
+  padding:7px 16px; border-radius:var(--r);
+  background:var(--surface3); border:1px solid var(--border-hi);
+  font-size:12.5px; font-weight:500;
+  opacity:0; pointer-events:none; transition:opacity .18s; z-index:999;
+}
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ─── TOPBAR ─────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="wordmark">
+    <div class="wm-chip">V</div>
+    Valence <span class="wm-sub">&nbsp;/ API Tester</span>
+  </div>
+  <div class="tb-gap"></div>
+
+  <div class="swatch-row" title="Switch skin">
+    <div class="sw on" data-t="graphite" title="Graphite"  onclick="setTheme('graphite',this)"></div>
+    <div class="sw"    data-t="obsidian"  title="Obsidian"  onclick="setTheme('obsidian',this)"></div>
+    <div class="sw"    data-t="sage"      title="Sage"      onclick="setTheme('sage',this)"></div>
+    <div class="sw"    data-t="dusk"      title="Dusk"      onclick="setTheme('dusk',this)"></div>
+    <div class="sw"    data-t="light"     title="Light"     onclick="setTheme('light',this)"></div>
+  </div>
+
+  <div class="spin" id="spinner"></div>
+  <div class="pill" id="pill">
+    <span class="pill-dot"></span>
+    <span id="pillTxt">Ready</span>
+  </div>
+</header>
+
+<!-- ─── BODY ──────────────────────────────────────────────────── -->
+<div class="body-row">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="s-sec">
+      <div class="s-label">Connection</div>
+      <div class="f2">
+        <div class="f"><div class="fl">Host</div><input type="text" id="host" placeholder="school.brightspace.com"></div>
+        <div class="f"><div class="fl">Port</div><input type="text" id="port" placeholder="443"></div>
+      </div>
+      <div class="tog-row">
+        <span class="tog-text">HTTPS</span>
+        <label class="tog"><input type="checkbox" id="useHttps" checked><span class="tog-tr"></span></label>
+      </div>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-label">App Credentials</div>
+      <div class="f"><div class="fl">App ID</div><input type="text" id="appId" placeholder="App ID"></div>
+      <div class="f"><div class="fl">App Key</div><input type="password" id="appKey" placeholder="App Key"></div>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-label">User Credentials</div>
+      <div class="f"><div class="fl">User ID</div><input type="text" id="userId" placeholder="User ID"></div>
+      <div class="f"><div class="fl">User Key</div><input type="password" id="userKey" placeholder="User Key"></div>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-label">Profiles</div>
+      <div class="f"><div class="fl">Name</div><input type="text" id="profName" placeholder="e.g. Production"></div>
+      <div class="btns">
+        <button class="btn btn-a" onclick="saveProf()">Save</button>
+        <button class="btn btn-g" onclick="clearAll()">Clear</button>
+      </div>
+      <div class="profs" id="profList"></div>
+    </div>
+
+    <div class="s-sec">
+      <div class="s-label">Quick Requests</div>
+      <div class="q-list">
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/users/whoami')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/users/whoami</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/versions/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/versions/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/users/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/users/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/courses/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/courses/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/le/(version)/enrollments/myenrollments/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/le/(ver)/enrollments/me</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/roles/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/roles/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('GET','/d2l/api/lp/(version)/orgstructure/')">
+          <span class="q-m" style="color:var(--m-get)">GET</span><span class="q-p">/lp/(ver)/orgstructure/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('POST','/d2l/api/lp/(version)/users/')">
+          <span class="q-m" style="color:var(--m-post)">POST</span><span class="q-p">/lp/(ver)/users/</span>
+        </div>
+        <div class="q-item" onclick="loadQ('PUT','/d2l/api/lp/(version)/users/userId')">
+          <span class="q-m" style="color:var(--m-put)">PUT</span><span class="q-p">/lp/(ver)/users/userId</span>
+        </div>
+        <div class="q-item" onclick="loadQ('DELETE','/d2l/api/le/(version)/enrolments/userId/orgUnitId')">
+          <span class="q-m" style="color:var(--m-del)">DEL</span><span class="q-p">/le/(ver)/enrolments/…</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Main panel -->
+  <section class="main">
+
+    <div class="req-bar">
+      <select id="method" onchange="syncMC()">
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+        <option value="PUT">PUT</option>
+        <option value="DELETE">DELETE</option>
+        <option value="PATCH">PATCH</option>
+      </select>
+      <input type="text" id="route" placeholder="/d2l/api/lp/(version)/users/whoami">
+      <button class="send" id="sendBtn" onclick="doSend()">Send</button>
+    </div>
+
+    <div class="panels">
+
+      <!-- Body pane -->
+      <div class="pane">
+        <div class="ph">
+          <span class="ph-title">Body</span>
+          <select class="ct-sel" id="ct">
+            <option value="application/json">JSON</option>
+            <option value="text/plain">Plain text</option>
+            <option value="application/x-www-form-urlencoded">URL-encoded</option>
+          </select>
+        </div>
+        <div class="pb">
+          <textarea class="code-ta" id="reqBody" spellcheck="false"
+            placeholder="// Payload for POST / PUT / PATCH"></textarea>
+        </div>
+        <div class="signed" id="signed">
+          <div class="signed-hd">
+            <span class="signed-lbl">Signed URL</span>
+            <button class="signed-cp" onclick="cpSigned()">Copy</button>
+          </div>
+          <div class="signed-url" id="signedUrl"></div>
+        </div>
+      </div>
+
+      <!-- Response pane -->
+      <div class="pane">
+        <div class="ph">
+          <span class="ph-title">Response</span>
+          <div class="tabs">
+            <button class="tab on" onclick="swTab('body',this)">Body</button>
+            <button class="tab"    onclick="swTab('headers',this)">Headers</button>
+            <button class="tab"    onclick="swTab('raw',this)">Raw</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div class="resp-pre" id="respOut">// Response will appear here…</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+<!-- ─── FOOTER ─────────────────────────────────────────────────── -->
+<footer class="footer">
+  <span class="ft-msg" id="ftMsg">No requests yet</span>
+  <span class="ft-stat" id="ftTime"></span>
+  <span class="ft-stat" id="ftSize"></span>
+</footer>
+
+</div><!-- /shell -->
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════════
+   THEMES
+══════════════════════════════════════════════════════ */
+const THEMES = {
+  graphite: {
+    '--bg':'#0d0d0f','--surface':'#131316','--surface2':'#1a1a1e','--surface3':'#222228',
+    '--border':'rgba(255,255,255,.065)','--border-hi':'rgba(255,255,255,.18)',
+    '--accent':'#5b8df6','--accent-rgb':'91,141,246',
+    '--accent-dim':'rgba(91,141,246,.12)','--accent-glow':'rgba(91,141,246,.05)',
+    '--text':'#e8e8ec','--text-sub':'#72727e','--text-dim':'#3a3a44',
+    '--ok':'#34d399','--ok-bg':'rgba(52,211,153,.08)',
+    '--err':'#f87171','--err-bg':'rgba(248,113,113,.08)',
+    '--j-key':'#60a5fa','--j-str':'#34d399','--j-num':'#fbbf24','--j-bool':'#a78bfa','--j-null':'#f87171',
+    '--m-get':'#34d399','--m-post':'#fbbf24','--m-put':'#60a5fa','--m-del':'#f87171','--m-patch':'#a78bfa',
+  },
+  obsidian: {
+    '--bg':'#000000','--surface':'#0a0a0a','--surface2':'#111111','--surface3':'#1c1c1c',
+    '--border':'rgba(255,255,255,.07)','--border-hi':'rgba(255,255,255,.22)',
+    '--accent':'#d4d4d8','--accent-rgb':'212,212,216',
+    '--accent-dim':'rgba(212,212,216,.08)','--accent-glow':'rgba(212,212,216,.04)',
+    '--text':'#f4f4f5','--text-sub':'#71717a','--text-dim':'#27272a',
+    '--ok':'#a3e635','--ok-bg':'rgba(163,230,53,.08)',
+    '--err':'#fb923c','--err-bg':'rgba(251,146,60,.08)',
+    '--j-key':'#94a3b8','--j-str':'#a3e635','--j-num':'#e4e4e7','--j-bool':'#c4b5fd','--j-null':'#fb923c',
+    '--m-get':'#a3e635','--m-post':'#fde68a','--m-put':'#93c5fd','--m-del':'#fb923c','--m-patch':'#c4b5fd',
+  },
+  sage: {
+    '--bg':'#0a0f0d','--surface':'#0f1512','--surface2':'#141d19','--surface3':'#1b2620',
+    '--border':'rgba(52,211,153,.1)','--border-hi':'rgba(52,211,153,.3)',
+    '--accent':'#34d399','--accent-rgb':'52,211,153',
+    '--accent-dim':'rgba(52,211,153,.12)','--accent-glow':'rgba(52,211,153,.05)',
+    '--text':'#d1fae5','--text-sub':'#4d7c68','--text-dim':'#1f3d31',
+    '--ok':'#6ee7b7','--ok-bg':'rgba(110,231,183,.08)',
+    '--err':'#f87171','--err-bg':'rgba(248,113,113,.08)',
+    '--j-key':'#67e8f9','--j-str':'#6ee7b7','--j-num':'#fcd34d','--j-bool':'#a5b4fc','--j-null':'#f87171',
+    '--m-get':'#6ee7b7','--m-post':'#fcd34d','--m-put':'#67e8f9','--m-del':'#f87171','--m-patch':'#a5b4fc',
+  },
+  dusk: {
+    '--bg':'#0f0c07','--surface':'#15110a','--surface2':'#1c160d','--surface3':'#251d12',
+    '--border':'rgba(251,191,36,.09)','--border-hi':'rgba(251,191,36,.28)',
+    '--accent':'#f59e0b','--accent-rgb':'245,158,11',
+    '--accent-dim':'rgba(245,158,11,.12)','--accent-glow':'rgba(245,158,11,.05)',
+    '--text':'#fef3c7','--text-sub':'#78614a','--text-dim':'#3a2d1a',
+    '--ok':'#86efac','--ok-bg':'rgba(134,239,172,.08)',
+    '--err':'#fca5a5','--err-bg':'rgba(252,165,165,.08)',
+    '--j-key':'#93c5fd','--j-str':'#86efac','--j-num':'#fde68a','--j-bool':'#c4b5fd','--j-null':'#fca5a5',
+    '--m-get':'#86efac','--m-post':'#fde68a','--m-put':'#93c5fd','--m-del':'#fca5a5','--m-patch':'#c4b5fd',
+  },
+  light: {
+    '--bg':'#f8f9fb','--surface':'#ffffff','--surface2':'#f1f3f7','--surface3':'#e8eaf0',
+    '--border':'rgba(0,0,0,.08)','--border-hi':'rgba(59,130,246,.45)',
+    '--accent':'#3b82f6','--accent-rgb':'59,130,246',
+    '--accent-dim':'rgba(59,130,246,.1)','--accent-glow':'rgba(59,130,246,.05)',
+    '--text':'#111827','--text-sub':'#6b7280','--text-dim':'#d1d5db',
+    '--ok':'#059669','--ok-bg':'rgba(5,150,105,.07)',
+    '--err':'#dc2626','--err-bg':'rgba(220,38,38,.07)',
+    '--j-key':'#1d4ed8','--j-str':'#059669','--j-num':'#d97706','--j-bool':'#7c3aed','--j-null':'#dc2626',
+    '--m-get':'#059669','--m-post':'#d97706','--m-put':'#1d4ed8','--m-del':'#dc2626','--m-patch':'#7c3aed',
+  },
+};
+
+function setTheme(name, el) {
+  const t = THEMES[name]; if (!t) return;
+  const r = document.documentElement;
+  Object.entries(t).forEach(([k,v]) => r.style.setProperty(k,v));
+  document.querySelectorAll('.sw').forEach(s => s.classList.remove('on'));
+  if (el) el.classList.add('on');
+  localStorage.setItem('vat_theme', name);
+  // update method color for new theme vars
+  syncMC();
+}
+
+/* ══════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════ */
+let lastText = '', lastHdrs = {}, activeTab = 'body';
+
+/* ══════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const gv = id => $(id).value.trim();
+const sv = (id,v) => $(id).value = v ?? '';
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const escQ = s => s.replace(/'/g,"\\'");
+
+/* ══════════════════════════════════════════════════════
+   HMAC-SHA256 (Web Crypto API)
+══════════════════════════════════════════════════════ */
+async function hmac(key, msg) {
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey('raw', enc.encode(key),
+    { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', k, enc.encode(msg));
+  const b = new Uint8Array(sig);
+  let bin = ''; b.forEach(x => bin += String.fromCharCode(x));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function buildUrl(method, host, port, https, path, aId, aKey, uId, uKey) {
+  const ts = Math.floor(Date.now() / 1000);
+  const scheme = https ? 'https' : 'http';
+  const pp = port ? `:${port}` : '';
+  const pathLo = path.split('?')[0].toLowerCase();
+  const toSign = `${method.toUpperCase()}\n${pathLo}\n${ts}`;
+  const ac = await hmac(aKey, toSign);
+  let url = `${scheme}://${host}${pp}${path}`;
+  url += (path.includes('?') ? '&' : '?') + `x-a=${encodeURIComponent(aId)}&x-c=${ac}&x-t=${ts}`;
+  if (uId && uKey) {
+    const ud = await hmac(uKey, toSign);
+    url += `&x-b=${encodeURIComponent(uId)}&x-d=${ud}`;
+  }
+  return url;
+}
+
+/* ══════════════════════════════════════════════════════
+   SEND
+══════════════════════════════════════════════════════ */
+async function doSend() {
+  const host   = gv('host'), port = gv('port');
+  const https  = $('useHttps').checked;
+  const aId    = gv('appId'),  aKey = gv('appKey');
+  const uId    = gv('userId'), uKey = gv('userKey');
+  const method = $('method').value;
+  const route  = gv('route');
+  const body   = gv('reqBody');
+  const ct     = gv('ct');
+
+  if (!host)  return toast('Host is required');
+  if (!route) return toast('Route / path is required');
+
+  busy(true);
+  setPill('busy','Sending…');
+
+  try {
+    const url = aId && aKey
+      ? await buildUrl(method, host, port, https, route, aId, aKey, uId, uKey)
+      : `${https?'https':'http'}://${host}${port?`:${port}`:''}${route}`;
+
+    $('signed').style.display = 'block';
+    $('signedUrl').textContent = url;
+
+    const opts = { method, headers:{} };
+    if (['POST','PUT','PATCH'].includes(method) && body && ct !== 'multipart/form-data') {
+      opts.body = body;
+      opts.headers['Content-Type'] = ct;
+    }
+
+    const t0 = performance.now();
+    const res = await fetch(url, opts);
+    const ms  = Math.round(performance.now() - t0);
+
+    lastHdrs = {};
+    res.headers.forEach((v,k) => lastHdrs[k]=v);
+    lastText = await res.text();
+    const bytes = new TextEncoder().encode(lastText).length;
+
+    renderTab(activeTab);
+    const ok = res.status >= 200 && res.status < 300;
+    setPill(ok?'ok':'err', `${res.status} ${res.statusText}`);
+    setFt(ok?'Request complete':'Request failed', ms, bytes);
+
+  } catch(e) {
+    let msg = e.message || String(e);
+    if (/fetch|failed|cors|network/i.test(msg))
+      msg = 'Network / CORS error.\n\nBrightspace instances typically block direct browser requests.\nYour signed URL above is still valid — copy it into Postman or curl.';
+    lastText = msg;
+    renderTab(activeTab);
+    setPill('err','Error');
+    setFt('Request failed',0,0);
+  } finally {
+    busy(false);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   RENDERING
+══════════════════════════════════════════════════════ */
+function renderTab(tab) {
+  const out = $('respOut');
+  if (tab === 'headers') {
+    const lines = Object.entries(lastHdrs).map(([k,v])=>`${k}: ${v}`).join('\n');
+    out.innerHTML = '';
+    out.style.color = 'var(--text-sub)';
+    out.textContent = lines || '// No headers captured';
+    return;
+  }
+  if (tab === 'raw') {
+    out.innerHTML = '';
+    out.style.color = 'var(--text)';
+    out.textContent = lastText || '// No response yet';
+    return;
+  }
+  out.style.color = '';
+  try {
+    const j = JSON.parse(lastText);
+    out.innerHTML = colorJSON(JSON.stringify(j,null,2));
+  } catch {
+    out.innerHTML = '';
+    out.style.color = 'var(--text)';
+    out.textContent = lastText || '// Response will appear here…';
+  }
+}
+
+function colorJSON(s) {
+  return esc(s).replace(
+    /("(\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+    m => {
+      let c = 'jn';
+      if (/^"/.test(m)) c = /:$/.test(m) ? 'jk' : 'js';
+      else if (/true|false/.test(m)) c = 'jb';
+      else if (/null/.test(m)) c = 'jl';
+      return `<span class="${c}">${m}</span>`;
+    }
+  );
+}
+
+function swTab(tab, el) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  renderTab(tab);
+}
+
+/* ══════════════════════════════════════════════════════
+   UI HELPERS
+══════════════════════════════════════════════════════ */
+const MC = { GET:'var(--m-get)', POST:'var(--m-post)', PUT:'var(--m-put)', DELETE:'var(--m-del)', PATCH:'var(--m-patch)' };
+
+function syncMC() { $('method').style.color = MC[$('method').value] || 'var(--text)'; }
+
+function loadQ(m, p) { $('method').value = m; $('route').value = p; syncMC(); }
+
+function busy(on) {
+  $('spinner').style.display = on ? 'block' : 'none';
+  $('sendBtn').disabled = on;
+  $('sendBtn').textContent = on ? '…' : 'Send';
+}
+
+function setPill(type, txt) {
+  $('pill').className = `pill ${type}`;
+  $('pillTxt').textContent = txt;
+}
+
+function setFt(msg, ms, bytes) {
+  $('ftMsg').textContent  = msg;
+  $('ftTime').textContent = ms    ? `${ms} ms`      : '';
+  $('ftSize').textContent = bytes ? fmtB(bytes)     : '';
+}
+
+function fmtB(b) {
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
+  return `${(b/1048576).toFixed(2)} MB`;
+}
+
+function cpSigned() {
+  navigator.clipboard.writeText($('signedUrl').textContent).then(()=>toast('Signed URL copied'));
+}
+
+/* ══════════════════════════════════════════════════════
+   PROFILES
+══════════════════════════════════════════════════════ */
+function saveProf() {
+  const name = gv('profName');
+  if (!name) return toast('Enter a profile name first');
+  const all = getProfs();
+  all[name] = { host:gv('host'), port:gv('port'), https:$('useHttps').checked,
+                aId:gv('appId'), aKey:gv('appKey'), uId:gv('userId'), uKey:gv('userKey') };
+  putProfs(all);
+  renderProfs();
+  toast(`"${name}" saved`);
+}
+
+function loadProf(name) {
+  const p = getProfs()[name]; if (!p) return;
+  sv('host',p.host); sv('port',p.port); $('useHttps').checked = p.https !== false;
+  sv('appId',p.aId); sv('appKey',p.aKey); sv('userId',p.uId); sv('userKey',p.uKey);
+  sv('profName',name); toast(`Loaded "${name}"`);
+}
+
+function delProf(name,e) {
+  e.stopPropagation();
+  const all = getProfs(); delete all[name]; putProfs(all); renderProfs();
+}
+
+function renderProfs() {
+  const el = $('profList'); el.innerHTML = '';
+  Object.keys(getProfs()).forEach(n => {
+    const d = document.createElement('div');
+    d.className = 'pp';
+    d.innerHTML = `<span onclick="loadProf('${escQ(n)}')">${esc(n)}</span><span class="pp-x" onclick="delProf('${escQ(n)}',event)">×</span>`;
+    el.appendChild(d);
+  });
+}
+
+const getProfs = () => { try { return JSON.parse(localStorage.getItem('vat3_p')||'{}'); } catch { return {}; } };
+const putProfs = p  => localStorage.setItem('vat3_p', JSON.stringify(p));
+
+/* ══════════════════════════════════════════════════════
+   CLEAR
+══════════════════════════════════════════════════════ */
+function clearAll() {
+  ['host','port','appId','appKey','userId','userKey','route','reqBody','profName'].forEach(id=>sv(id,''));
+  $('useHttps').checked = true;
+  $('signed').style.display = 'none';
+  $('respOut').innerHTML = '// Response will appear here…';
+  $('respOut').style.color = 'var(--text-dim)';
+  setPill('','Ready');
+  $('ftMsg').textContent = 'No requests yet';
+  $('ftTime').textContent = $('ftSize').textContent = '';
+  lastText = ''; lastHdrs = {};
+}
+
+/* ══════════════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════════════ */
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+(function(){
+  const saved = localStorage.getItem('vat_theme') || 'graphite';
+  const sw    = document.querySelector(`.sw[data-t="${saved}"]`);
+  setTheme(saved, sw);
+  syncMC();
+  renderProfs();
+  $('route').addEventListener('keydown', e => { if (e.key==='Enter') doSend(); });
+})();
+</script>
+</body>
+</html>
